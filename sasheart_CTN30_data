@@ -1,0 +1,124 @@
+/* Generated Code (IMPORT) */
+/* Source File: HW.csv */
+/* Source Path: /home/u49592241/sasuser.v94 */
+/* Code generated on: 8/28/21, 10:35 PM */
+/*Victor Ortiz  */
+%web_drop_table(WORK.IMPORT);
+/*macro functions*/
+%let male=Q1.score_m;
+%let female=Q1.score_f;
+/*importing*/
+proc import datafile='~/my_shared_file_links/panyue0/BST625/DATA/HW2/company.txt'
+DBMS=dlm
+out=mylib.company
+replace;
+run;
+data mylib.Company;
+infile cards delimiter='$' /*removing the symbole $ from the file when it is read*/;
+input LastName $ EmpNo $ Salary;
+cards;
+Robertson$M234$45000
+Chien$M74777$$.
+Walters$.$75000
+Rogers$F7272$78131
+;
+run;
+/*importing*/
+proc import datafile='~/my_shared_file_links/panyue0/BST625/DATA/HW2/score_data.xlsx'/*importing data score*/
+DBMS=XLSX
+out=score_0
+replace;
+run;
+/*creating a dataset and definding its variables*/
+data score_1;
+set work.score_0;
+Total_Score=score1+score3;/*add the two test scores to get the total score*/
+Avg_Score=(score1+score2+score3)/3;/*adding all three scores and divided by 3 to get the avg score*/
+if avg_score>=90 then grade="A";/*depending where the avg score lands then the grade reflects that*/
+else if 80<=avg_score<90 then grade="B";
+else if 70<=avg_score<80 then grade="C";
+else if 60<=avg_score<70 then grade="D";
+else if 50<=avg_score<60 then grade="F";
+if grade="F" then pass="fail";/*if the grade is better than F then variable pass is = to pass*/
+else pass="pass";
+run;
+proc print data=score_1;RUN;
+data &male &female;
+set score_1 (keep = name gender total_score avg_score grade pass);
+drop score1 score2 score3;
+if gender = "m" then output &male; 
+if gender = "f" then output &female;
+run;
+proc sort data=&male out=score_m;
+by avg_score;
+run;
+proc sort data=&female out=score_f;
+by descending avg_score;
+run;
+proc print data=score_m; RUN;
+proc print data=score_f; RUN;
+/*creating a new dataset based on sashelp.heart*/
+data heart_0;
+set sashelp.heart;
+length chole_check $10;
+if cholesterol<200 then chole_check="Desirable";
+else if 200<=cholesterol<240 then chole_check="Borderline";
+else if cholesterol>240 then chole_check="High";
+where sex='Male';
+where weight>=150;
+run;
+Proc FREQ DATA=HEART_0;
+TABLES CHOLE_CHECK CHOL_STATUS CHOLE_CHECK*CHOL_STATUS/MISSING;
+RUN;
+/*demographic dataset*/
+Libname CTN30 '~/my_shared_file_links/panyue0/BST625/DATA/CTN30 Data';
+/*macro report*/
+%macro ctn30_report;
+data dem;
+set CTN30.t_frdem (keep = DEM002 patdeid visit);
+length gender $8;
+if DEM002 = 1 then gender="Male";
+else
+gender ="female";
+run;
+PROC FREQ DATA=dem;
+TABLES gender;
+RUN;
+/*alochol use data set*/
+data ALC;
+set CTN30.t_frASL4 (keep = D2A D2B patdeid visit);
+if D2A>0 then  ALCTOX_30 = 1;
+else
+ ALCTOX_30 = 0;
+if D2B>0 then  ALCTOX_LT = 1;
+else
+ ALCTOX_LT = 0;
+ run;
+ /*merging the datasets together to create a new one*/
+data DEM_ALC;
+merge dem (in=a) alc(in=b);
+by patdeid;
+if a and b;
+run;
+/*CTN data exploration  */
+proc SQL;
+	create table DEM_ALC2 AS
+	Select *
+	From Dem as A INNER JOIN
+		ALC as B
+	ON A.patdeid=B.patdeid /*mergeing them by patdeid*/
+	WHERE ALCTOX_LT eq 1; /*flitering out where alctox_lt is equal to 1*/
+Quit;
+ODS GRAPHICS ON;
+PROC FREQ DATA=DEM_ALC2;
+TABLES GENDER*ALCTOX_30/NOCOL NOPERCENT PLOTS=
+FREQPLOT(scale=percent) CHISQ;
+RUN;
+ODS GRAPHICS OFF;
+%mend CTN30_report;
+
+%ctn30_report
+
+
+
+%web_open_table(WORK.IMPORT);
